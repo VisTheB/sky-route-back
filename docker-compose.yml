@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: sky-route-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -h 127.0.0.1 -U postgres -d demo &&
+          psql -h 127.0.0.1 -U postgres -d demo -tAc
+          "SELECT to_regclass('bookings.flights') IS NOT NULL
+             AND EXISTS (SELECT 1 FROM bookings.flights LIMIT 1)" | grep -qx t
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  date-shift:
+    image: postgres:17-alpine
+    container_name: sky-route-date-shift
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./db/shift:/shift:ro
+    command:
+      - psql
+      - -h
+      - db
+      - -U
+      - postgres
+      - -d
+      - demo
+      - -v
+      - ON_ERROR_STOP=1
+      - -f
+      - /shift/shift-dates.sql
+    restart: 'no'
+
+  api:
+    build: .
+    container_name: sky-route-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      date-shift:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: demo
+      DB_SCHEMA: bookings
+      APP_PORT: 3000
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata:
