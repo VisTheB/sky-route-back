@@ -20,8 +20,12 @@ export const KYSELY = Symbol('KYSELY');
           password: cfg.get('DB_PASSWORD'),
           database: cfg.get('DB_NAME'),
         });
+        const lang = 'en';
         pool.on('connect', (client) => {
-          client.query(`SET search_path TO ${cfg.get('DB_SCHEMA')}, public`);
+          client.query(
+            `SET search_path TO ${cfg.get('DB_SCHEMA')}, public; ` +
+              `SET "bookings.lang" TO '${lang}';`,
+          );
         });
         return new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
       },
