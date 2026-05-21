@@ -60,11 +60,22 @@ export class DateShiftService implements OnApplicationBootstrap {
 
     await this.db.transaction().execute(async (trx) => {
       await sql`
+        ALTER TABLE bookings.flights
+          DROP CONSTRAINT IF EXISTS flights_route_no_scheduled_departure_key
+      `.execute(trx);
+
+      await sql`
         UPDATE bookings.flights
            SET scheduled_departure = scheduled_departure + make_interval(days => ${delta}),
-               scheduled_arrival   = scheduled_arrival   + make_interval(days => ${delta}),
-               actual_departure    = actual_departure    + make_interval(days => ${delta}),
-               actual_arrival      = actual_arrival      + make_interval(days => ${delta})
+               scheduled_arrival = scheduled_arrival + make_interval(days => ${delta}),
+               actual_departure = actual_departure + make_interval(days => ${delta}),
+               actual_arrival = actual_arrival + make_interval(days => ${delta})
+      `.execute(trx);
+
+      await sql`
+        ALTER TABLE bookings.flights
+          ADD CONSTRAINT flights_route_no_scheduled_departure_key
+          UNIQUE (route_no, scheduled_departure)
       `.execute(trx);
 
       await sql`
